@@ -130,12 +130,6 @@ public:
         return *this;
     }
 
-    std::exception_ptr join( ) {
-        assert( m_private != nullptr );
-
-        return details::join( m_private );
-    }
-
     static Coro thisCoro( ) noexcept { return Coro( details::thisCoro( ) ); }
 
 private:

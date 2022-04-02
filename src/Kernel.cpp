@@ -19,10 +19,9 @@ void exit( std::exception_ptr err ) noexcept {
 
     if( err ) {
         coro.exception = std::move( err );
-        coro.state = CoroState::EXCEPTION;
-    } else {
-        coro.state = CoroState::FINISHED;
     }
+
+    coro.state = CoroState::FINISHED;
 
     co_switch( LoopData->SchedulerCoro );
 }
@@ -31,7 +30,7 @@ namespace details {
 
 void firstYield( ) noexcept {
     if( LoopData->CurrentCoro->prev( ) != LoopData->CurrentCoro ) {
-        LoopData->CurrentCoro = static_cast< CoroPrivate * >( LoopData->CurrentCoro->prev( ) );
+        LoopData->CurrentCoro = LoopData->CurrentCoro->prev( );
     }
 
     co_switch( LoopData->SchedulerCoro );
@@ -63,7 +62,7 @@ void run( unsigned stackSize, void (*fn)( ) ) {
         co_switch( LoopData->CurrentCoro->cothread );
 
         auto outgoingCoro = LoopData->CurrentCoro;
-        LoopData->CurrentCoro = static_cast< CoroPrivate * >( LoopData->CurrentCoro->next( ) );
+        LoopData->CurrentCoro = LoopData->CurrentCoro->next( );
 
         if( outgoingCoro->state != CoroState::READY ) {
             --( LoopData->ActiveCoros );

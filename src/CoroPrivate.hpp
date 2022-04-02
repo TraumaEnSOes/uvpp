@@ -13,7 +13,7 @@ struct LoopPrivate;
 
 namespace uvpp {
 
-struct CoroPrivate : public CListNode {
+struct CoroPrivate : public CListNode< CoroPrivate > {
     CoroPrivate( LoopPrivate *l ) :
         CListNode( ),
         loop( l )
