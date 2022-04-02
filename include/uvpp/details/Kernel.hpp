@@ -20,7 +20,6 @@ void run( unsigned stackSize, void (*fn)( ) );
 CoroPrivate *createCoro( unsigned stackSize, void (*fn)( ) );
 CoroPrivate *thisCoro( ) noexcept;
 
-std::exception_ptr exception( const CoroPrivate *coro ) noexcept;
 CoroState state( const CoroPrivate *coro ) noexcept;
 const std::string &name( const CoroPrivate *coro ) noexcept;
 void setName( CoroPrivate *coro ) noexcept;

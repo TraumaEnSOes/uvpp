@@ -106,10 +106,6 @@ CoroPrivate *thisCoro( ) noexcept {
     return LoopData->CurrentCoro;
 }
 
-std::exception_ptr exception( const CoroPrivate *coro ) noexcept {
-    return coro->exception;
-}
-
 CoroState state( const CoroPrivate *coro ) noexcept {
     return coro->state;
 }

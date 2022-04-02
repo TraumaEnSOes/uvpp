@@ -94,12 +94,6 @@ public:
     bool operator!=( const Coro &other ) const noexcept { return m_private != other.m_private; }
     bool operator!=( CoroPrivate *other ) const noexcept { return m_private != other; }
 
-    std::exception_ptr exception( ) const noexcept {
-        assert( m_private != nullptr );
-
-        return details::exception( m_private );
-    }
-
     CoroState state( ) const noexcept {
         assert( m_private != nullptr );
 
@@ -112,21 +106,34 @@ public:
         return details::name( m_private );
     }
 
-    void setName( ) noexcept {
+    Coro &setName( ) noexcept {
         assert( m_private != nullptr );
 
         details::setName( m_private );
+
+        return *this;
     }
 
-    void setName( std::string n ) noexcept {
+    Coro &setName( std::string n ) noexcept {
         assert( m_private != nullptr );
 
         details::setName( m_private, std::move( n ) );
+
+        return *this;
     }
-    void dtach( ) noexcept {
+
+    Coro &dtach( ) noexcept {
         assert( m_private != nullptr );
 
         details::dtach( m_private );
+
+        return *this;
+    }
+
+    std::exception_ptr join( ) {
+        assert( m_private != nullptr );
+
+        return details::join( m_private );
     }
 
     static Coro thisCoro( ) noexcept { return Coro( details::thisCoro( ) ); }
