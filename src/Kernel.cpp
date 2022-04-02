@@ -30,8 +30,8 @@ void exit( std::exception_ptr err ) noexcept {
 namespace details {
 
 void firstYield( ) noexcept {
-    if( LoopData->CurrentCoro->prev != LoopData->CurrentCoro ) {
-        LoopData->CurrentCoro = LoopData->CurrentCoro->prev;
+    if( LoopData->CurrentCoro->prev( ) != LoopData->CurrentCoro ) {
+        LoopData->CurrentCoro = static_cast< CoroPrivate * >( LoopData->CurrentCoro->prev( ) );
     }
 
     co_switch( LoopData->SchedulerCoro );
@@ -53,8 +53,6 @@ void run( unsigned stackSize, void (*fn)( ) ) {
 
     if( firstCoro->cothread == nullptr ) { throw std::bad_alloc( ); }
 
-    firstCoro->prev = firstCoro;
-    firstCoro->next = firstCoro;
     firstCoro->dtached = true;
 
     LoopData->CurrentCoro = firstCoro;
@@ -65,7 +63,7 @@ void run( unsigned stackSize, void (*fn)( ) ) {
         co_switch( LoopData->CurrentCoro->cothread );
 
         auto outgoingCoro = LoopData->CurrentCoro;
-        LoopData->CurrentCoro = LoopData->CurrentCoro->next;
+        LoopData->CurrentCoro = static_cast< CoroPrivate * >( LoopData->CurrentCoro->next( ) );
 
         if( outgoingCoro->state != CoroState::READY ) {
             --( LoopData->ActiveCoros );
@@ -76,8 +74,7 @@ void run( unsigned stackSize, void (*fn)( ) ) {
             }
 
             if( LoopData->ActiveCoros != 0 ) {
-                outgoingCoro->next->prev = outgoingCoro->prev;
-                outgoingCoro->prev->next = outgoingCoro->next;
+                outgoingCoro->unlink( );
             }
 
             delete outgoingCoro;
@@ -96,10 +93,7 @@ CoroPrivate *createCoro( unsigned stackSize, void (*fn)( ) ) {
 
     ( LoopData->ActiveCoros ) += 1;
 
-    newPrivate->prev = LoopData->CurrentCoro->prev;
-    LoopData->CurrentCoro->prev->next = newPrivate;
-    newPrivate->next = LoopData->CurrentCoro;
-    LoopData->CurrentCoro->prev = newPrivate;
+    LoopData->CurrentCoro->insertBefore( newPrivate );
 
     // To fast free locks, and allow creator to dtach
     // LoopData->CurrentCoro = LoopData->CurrentCoro->prev;

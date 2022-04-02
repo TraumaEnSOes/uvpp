@@ -3,6 +3,8 @@
 
 #include "libco/libco.h"
 
+#include "CListNode.hpp"
+
 #include "uvpp/CoroState.hpp"
 
 #include <string>
@@ -11,8 +13,9 @@ struct LoopPrivate;
 
 namespace uvpp {
 
-struct CoroPrivate {
+struct CoroPrivate : public CListNode {
     CoroPrivate( LoopPrivate *l ) :
+        CListNode( ),
         loop( l )
     {
     }
@@ -22,9 +25,6 @@ struct CoroPrivate {
     bool dtached = false;
     CoroPrivate *waitedBy = nullptr;
     CoroPrivate *waitTo = nullptr;
-
-    CoroPrivate *prev;
-    CoroPrivate *next;
 
     std::exception_ptr exception;
     std::string name;
