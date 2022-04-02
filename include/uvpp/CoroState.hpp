@@ -5,8 +5,8 @@ namespace uvpp {
 
 enum CoroState {
     READY,
-    FINISHED,
-    EXCEPTION
+    WAITING,
+    FINISHED
 };
 
 } // namespace uvpp.
