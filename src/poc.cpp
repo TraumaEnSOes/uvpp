@@ -46,8 +46,8 @@ void master( ) {
             what = exc.what( );
         }
 
-        std::cout << "FailWorker throws\n";
-        std::cout << what << std::endl;
+        std::cout << "FailWorker throws: \"";
+        std::cout << what << '"' << std::endl;
     }
 
     std::cout << "Master finished" << std::endl;
