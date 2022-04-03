@@ -16,18 +16,40 @@ void worker( int number ) {
     std::cout << "Worker " << number << " finished" << std::endl;
 }
 
+void failWorker( int number ) {
+    std::cout << "Starting Worker " << number << std::endl;
+    uvpp::Coro::thisCoro( ).setName( "FailWorker" );
+
+    throw std::runtime_error( "Manually raised 'runtime_error'" );
+}
+
 void master( ) {
     std::cout << "Starting Master" << std::endl;
 
     uvpp::Coro::thisCoro( ).setName( "Master" );
 
-    for( int idx = 0; idx < 3; ++idx ) {
+    int idx;
+    for( idx = 0; idx < 3; ++idx ) {
         std::cout << "Creating Worker " << idx << std::endl;
         uvpp::Coro( worker, idx ).dtach( );
     }
 
-    std::cout << "Master yield" << std::endl;
-    uvpp::yield( );
+    std::cout << "Creating final Worker" << std::endl;
+    auto error = uvpp::Coro( failWorker, idx ).join( );
+
+    if( error ) {
+        std::string what;
+
+        try {
+            std::rethrow_exception( error );
+        } catch( const std::exception &exc ) {
+            what = exc.what( );
+        }
+
+        std::cout << "FailWorker throws\n";
+        std::cout << what << std::endl;
+    }
+
     std::cout << "Master finished" << std::endl;
 }
 
