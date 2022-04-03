@@ -8,6 +8,7 @@
 namespace uvpp {
 
 struct CoroPrivate;
+struct Coro;
 
 void yield( ) noexcept;
 void exit( std::exception_ptr err ) noexcept;
@@ -17,14 +18,18 @@ namespace details {
 
 void firstYield( ) noexcept;
 void run( unsigned stackSize, void (*fn)( ) );
-CoroPrivate *createCoro( unsigned stackSize, void (*fn)( ) );
+CoroPrivate *createCoro( unsigned stackSize, Coro *origin, void (*fn)( ) );
 CoroPrivate *thisCoro( ) noexcept;
 
-CoroState state( const CoroPrivate *coro ) noexcept;
+bool setCoro( CoroPrivate *coro, Coro *self ) noexcept;
+bool joinable( const CoroPrivate *coro ) noexcept;
+void requestStop( CoroPrivate *coro ) noexcept;
+bool stopRequested( const CoroPrivate *coro ) noexcept;
+void cancel( CoroPrivate *coro ) noexcept;
 const std::string &name( const CoroPrivate *coro ) noexcept;
 void setName( CoroPrivate *coro ) noexcept;
 void setName( CoroPrivate *coro, std::string n ) noexcept;
-void dtach( CoroPrivate *coro ) noexcept;
+void detach( CoroPrivate *coro ) noexcept;
 std::exception_ptr join( CoroPrivate *m_private );
 
 }

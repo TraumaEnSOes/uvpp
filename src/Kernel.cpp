@@ -47,18 +47,27 @@ void run( unsigned stackSize, void (*fn)( ) ) {
 
     LoopData->SchedulerCoro = co_active( );
 
-    auto firstCoro = new CoroPrivate( LoopData );
+    auto firstCoro = new CoroPrivate( LoopData, nullptr );
     firstCoro->cothread = co_create( stackSize, fn );
 
     if( firstCoro->cothread == nullptr ) { throw std::bad_alloc( ); }
 
-    firstCoro->dtached = true;
+    firstCoro->detached = true;
 
     LoopData->CurrentCoro = firstCoro;
     LoopData->ActiveCoros = 1;
 
     // Main loop.
     while( LoopData->ActiveCoros != 0 ) {
+        if( LoopData->CurrentCoro->state == CoroState::CANCELLED ) {
+            // Cancelled by user.
+            LoopData->unlink( LoopData->CurrentCoro );
+            --( LoopData->ActiveCoros );
+            LoopData->advanceCoro( );
+
+            continue;
+        }
+
         co_switch( LoopData->CurrentCoro->cothread );
 
         auto outgoingCoro = LoopData->CurrentCoro;
@@ -71,7 +80,7 @@ void run( unsigned stackSize, void (*fn)( ) ) {
             LoopData->advanceCoro( );
             --( LoopData->ActiveCoros );
 
-            if( outgoingCoro->dtached ) {
+            if( outgoingCoro->detached ) {
                 delete outgoingCoro;
             } else if( outgoingCoro->waitedBy ) {
                 LoopData->reinsertBefore( outgoingCoro->waitedBy );
@@ -84,12 +93,12 @@ void run( unsigned stackSize, void (*fn)( ) ) {
     }
 }
 
-CoroPrivate *createCoro( unsigned stackSize, void (*fn)( ) ) {
+CoroPrivate *createCoro( unsigned stackSize, Coro *origin, void (*fn)( ) ) {
     if( stackSize == 0 ) {
         stackSize = DEFAULT_STACK_SIZE;
     }
 
-    auto newPrivate = new CoroPrivate( LoopData );
+    auto newPrivate = new CoroPrivate( LoopData, origin );
     newPrivate->cothread = co_create( stackSize, fn );
     if( newPrivate->cothread == nullptr ) { throw std::bad_alloc( ); }
 
@@ -108,8 +117,20 @@ CoroPrivate *thisCoro( ) noexcept {
     return LoopData->CurrentCoro;
 }
 
-CoroState state( const CoroPrivate *coro ) noexcept {
+bool joinable( const CoroPrivate *coro ) noexcept {
     return coro->state;
+}
+
+void requestStop( CoroPrivate *coro ) noexcept {
+    coro->stopRequested = true;
+}
+
+bool stopRequested( const CoroPrivate *coro ) noexcept {
+    return coro->stopRequested;
+}
+
+void cancel( CoroPrivate *coro ) noexcept {
+    coro->state = CoroState::CANCELLED;
 }
 
 const std::string &name( const CoroPrivate *coro ) noexcept {
@@ -124,12 +145,12 @@ void setName( CoroPrivate *coro, std::string n ) noexcept {
     coro->name = std::move( n );
 }
 
-void dtach( CoroPrivate *coro ) noexcept {
-    coro->dtached = true;
+void detach( CoroPrivate *coro ) noexcept {
+    coro->detached = true;
 }
 
 std::exception_ptr join( CoroPrivate *coro ) {
-    if( coro->dtached ) {
+    if( coro->detached ) {
         throw Exception( "Is already in detach state" );
     }
     if( coro->waitedBy ) {

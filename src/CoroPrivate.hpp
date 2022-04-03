@@ -5,6 +5,7 @@
 
 #include "CListNode.hpp"
 
+#include "uvpp/Coro.hpp"
 #include "uvpp/CoroState.hpp"
 
 #include <string>
@@ -14,15 +15,27 @@ struct LoopPrivate;
 namespace uvpp {
 
 struct CoroPrivate : public CListNode< CoroPrivate > {
-    CoroPrivate( LoopPrivate *l ) :
+    ~CoroPrivate( ) {
+        if( coro ) {
+            coro->m_private = nullptr;
+        }
+
+        co_delete( cothread );
+    }
+
+    CoroPrivate( LoopPrivate *l, Coro *c ) :
         CListNode( ),
-        loop( l )
+        loop( l ),
+        coro( c )
     {
     }
 
     LoopPrivate *loop;
+    Coro *coro;
+
+    bool stopRequested = false;
     CoroState state = CoroState::READY;
-    bool dtached = false;
+    bool detached = false;
     CoroPrivate *waitedBy = nullptr;
     CoroPrivate *waitTo = nullptr;
 

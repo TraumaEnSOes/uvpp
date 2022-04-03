@@ -31,7 +31,7 @@ void master( ) {
     int idx;
     for( idx = 0; idx < 3; ++idx ) {
         std::cout << "Creating Worker " << idx << std::endl;
-        uvpp::Coro( worker, idx ).dtach( );
+        uvpp::Coro( worker, idx ).detach( );
     }
 
     std::cout << "Creating final Worker" << std::endl;

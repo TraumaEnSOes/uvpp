@@ -24,6 +24,8 @@ namespace uvpp {
 struct CoroPrivate;
 
 class Coro {
+    friend class CoroPrivate;
+
     friend inline std::ostream &operator<<( std::ostream &os, const Coro &coro ) {
         return os << "Coro<" << coro.m_private << '>';
     }
@@ -38,7 +40,7 @@ public:
 
         helper.fn = std::move( fn );
 
-        m_private = details::createCoro( stackSize, Helper::exec );
+        m_private = details::createCoro( stackSize, this, Helper::exec );
     }
     template< typename FN > Coro( FN &&fn ) {
         using Helper = details::CoroHelper< void >;
@@ -48,7 +50,7 @@ public:
 
         helper.fn = std::move( fn );
 
-        m_private = details::createCoro( 0, Helper::exec );
+        m_private = details::createCoro( 0, this, Helper::exec );
     }
     template< typename FN, typename... ARGS > Coro( size_t stackSize, FN &&fn, ARGS... args ) {
         using Helper = details::CoroHelper< ARGS... >;
@@ -59,7 +61,7 @@ public:
         helper.tuple = std::make_tuple( std::forward< ARGS >( args )... );
         helper.fn = std::move( fn );
 
-        m_private = details::createCoro( stackSize, Helper::exec );
+        m_private = details::createCoro( stackSize, this, Helper::exec );
     }
     template< typename FN, typename... ARGS > Coro( FN &&fn, ARGS... args ) {
         using Helper = details::CoroHelper< ARGS... >;
@@ -70,34 +72,62 @@ public:
         helper.tuple = std::make_tuple( std::forward< ARGS >( args )... );
         helper.fn = std::move( fn );
 
-        m_private = details::createCoro( 0, Helper::exec );
+        m_private = details::createCoro( 0, this, Helper::exec );
     }
     Coro( CoroPrivate *priv = nullptr ) :
         m_private( priv )
     {
     }
-    Coro( const Coro &other ) = default;
-    Coro( Coro &&other ) = default;
+    Coro( const Coro &other ) = delete;
+    Coro( Coro &&other ) :
+        m_private( other.m_private )
+    {
+        if( m_private ) {
+            other.m_private = nullptr;
+            details::setCoro( m_private, this );
+        }
+    }
 
-    Coro &operator=( CoroPrivate *priv ) {
-        m_private = priv;
+    Coro &operator=( const Coro &other ) = delete;
+    Coro &operator=( Coro &&other ) {
+        m_private = other.m_private;
+
+        if( m_private ) {
+            other.m_private = nullptr;
+            details::setCoro( m_private, this );
+        }
+
         return *this;
     }
-    Coro &operator=( const Coro &other ) = default;
-    Coro &operator=( Coro &&other ) = default;
 
     operator bool( ) const noexcept { return m_private != nullptr; }
     bool operator!( ) const noexcept { return m_private == nullptr; }
 
     bool operator==( const Coro &other ) const noexcept { return m_private == other.m_private; }
-    bool operator==( CoroPrivate *other ) const noexcept { return m_private == other; }
     bool operator!=( const Coro &other ) const noexcept { return m_private != other.m_private; }
-    bool operator!=( CoroPrivate *other ) const noexcept { return m_private != other; }
 
-    CoroState state( ) const noexcept {
-        assert( m_private != nullptr );
+    [[nodiscard]] bool joinable( ) const noexcept {
+        return m_private ?
+            details::joinable( m_private ) :
+            false;
+    }
 
-        return details::state( m_private );
+    void requestStop( ) noexcept {
+        if( m_private ) {
+            details::requestStop( m_private );
+        }
+    }
+
+    [[nodiscard]] bool stopRequested( ) const noexcept {
+        assert( m_private );
+
+        return details::stopRequested( m_private );
+    }
+
+    void cancel( ) {
+        if( m_private ) {
+            details::cancel( m_private );
+        }
     }
 
     const std::string &name( ) const noexcept {
@@ -122,10 +152,10 @@ public:
         return *this;
     }
 
-    Coro &dtach( ) noexcept {
+    Coro &detach( ) noexcept {
         assert( m_private != nullptr );
 
-        details::dtach( m_private );
+        details::detach( m_private );
 
         return *this;
     }
