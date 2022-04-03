@@ -8,6 +8,37 @@
 static constexpr unsigned DEFAULT_STACK_SIZE = 131072U;
 static constexpr unsigned DEFAULT_RUN_STACK_SIZE = 65536U;
 
+static inline void outgoingIsReady( LoopPrivate *, uvpp::CoroPrivate * ) noexcept {
+
+}
+
+static inline void outgoingIsWaiting( LoopPrivate *, uvpp::CoroPrivate *outgoingCoro ) noexcept {
+    outgoingCoro->unlink( );
+}
+
+static inline void outgoingIsFinished( LoopPrivate *loop, uvpp::CoroPrivate *outgoingCoro ) noexcept {
+    outgoingCoro->unlink( );
+    --( loop->ActiveCoros );
+
+    if( outgoingCoro->dtached ) {
+        delete outgoingCoro;
+        return;
+    }
+
+    if( outgoingCoro->waitedBy ) {
+        if( loop->ActiveCoros == 1 ) {
+            outgoingCoro->waitedBy->reset( );
+            loop->CurrentCoro = outgoingCoro->waitedBy;
+        } else {
+            loop->CurrentCoro->insertBefore( outgoingCoro->waitedBy );
+        }
+
+        return;
+    }
+
+    throw uvpp::Exception( "Not detach, nor join coro finished" );
+}
+
 namespace uvpp {
 
 void yield( ) noexcept {
@@ -64,19 +95,12 @@ void run( unsigned stackSize, void (*fn)( ) ) {
         auto outgoingCoro = LoopData->CurrentCoro;
         LoopData->CurrentCoro = LoopData->CurrentCoro->next( );
 
-        if( outgoingCoro->state != CoroState::READY ) {
-            --( LoopData->ActiveCoros );
-
-            if( outgoingCoro->state == CoroState::FINISHED && ( outgoingCoro->dtached == false ) ) {
-                 throw Exception( "Non-detached coro as finished without join" );
-                 std::terminate( );
-            }
-
-            if( LoopData->ActiveCoros != 0 ) {
-                outgoingCoro->unlink( );
-            }
-
-            delete outgoingCoro;
+        if( outgoingCoro->state == CoroState::READY ) {
+            outgoingIsReady( LoopData, outgoingCoro );
+        } else if( outgoingCoro->state == CoroState::WAITING ) {
+            outgoingIsWaiting( LoopData, outgoingCoro );
+        } else {
+            outgoingIsFinished( LoopData, outgoingCoro );
         }
     }
 }
@@ -123,6 +147,28 @@ void setName( CoroPrivate *coro, std::string n ) noexcept {
 
 void dtach( CoroPrivate *coro ) noexcept {
     coro->dtached = true;
+}
+
+std::exception_ptr join( CoroPrivate *coro ) {
+    if( coro->dtached ) {
+        throw Exception( "Is already in detach state" );
+    }
+    if( coro->waitedBy ) {
+        throw Exception( "Is already in join state" );
+    }
+
+    if( coro->waitTo == LoopData->CurrentCoro ) {
+        throw Exception( "Circular join loop" );
+    }
+
+    LoopData->CurrentCoro->state = CoroState::WAITING;
+
+    co_switch( LoopData->SchedulerCoro );
+
+    auto error = std::move( coro->exception );
+    delete coro;
+
+    return error;
 }
 
 } // namespace details.

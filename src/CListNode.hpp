@@ -10,8 +10,8 @@ public:
     }
 
     void reset( ) noexcept {
-        m_prev = this;
-        m_next = this;
+        m_prev = static_cast< T * >( this );
+        m_next = static_cast< T * >( this );
     }
 
     bool isUnique( ) const noexcept { return m_prev == this; }

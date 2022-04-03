@@ -25,6 +25,7 @@ const std::string &name( const CoroPrivate *coro ) noexcept;
 void setName( CoroPrivate *coro ) noexcept;
 void setName( CoroPrivate *coro, std::string n ) noexcept;
 void dtach( CoroPrivate *coro ) noexcept;
+std::exception_ptr join( CoroPrivate *m_private );
 
 }
 
