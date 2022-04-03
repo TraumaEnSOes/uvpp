@@ -8,37 +8,6 @@
 static constexpr unsigned DEFAULT_STACK_SIZE = 131072U;
 static constexpr unsigned DEFAULT_RUN_STACK_SIZE = 65536U;
 
-static inline void outgoingIsReady( LoopPrivate *, uvpp::CoroPrivate * ) noexcept {
-
-}
-
-static inline void outgoingIsWaiting( LoopPrivate *, uvpp::CoroPrivate *outgoingCoro ) noexcept {
-    outgoingCoro->unlink( );
-}
-
-static inline void outgoingIsFinished( LoopPrivate *loop, uvpp::CoroPrivate *outgoingCoro ) noexcept {
-    outgoingCoro->unlink( );
-    --( loop->ActiveCoros );
-
-    if( outgoingCoro->dtached ) {
-        delete outgoingCoro;
-        return;
-    }
-
-    if( outgoingCoro->waitedBy ) {
-        if( loop->ActiveCoros == 1 ) {
-            outgoingCoro->waitedBy->reset( );
-            loop->CurrentCoro = outgoingCoro->waitedBy;
-        } else {
-            loop->CurrentCoro->insertBefore( outgoingCoro->waitedBy );
-        }
-
-        return;
-    }
-
-    throw uvpp::Exception( "Not detach, nor join coro finished" );
-}
-
 namespace uvpp {
 
 void yield( ) noexcept {
@@ -93,14 +62,24 @@ void run( unsigned stackSize, void (*fn)( ) ) {
         co_switch( LoopData->CurrentCoro->cothread );
 
         auto outgoingCoro = LoopData->CurrentCoro;
-        LoopData->CurrentCoro = LoopData->CurrentCoro->next( );
 
-        if( outgoingCoro->state == CoroState::READY ) {
-            outgoingIsReady( LoopData, outgoingCoro );
-        } else if( outgoingCoro->state == CoroState::WAITING ) {
-            outgoingIsWaiting( LoopData, outgoingCoro );
-        } else {
-            outgoingIsFinished( LoopData, outgoingCoro );
+        if( outgoingCoro->state == CoroState::WAITING ) {
+            LoopData->unlink( outgoingCoro );
+            LoopData->advanceCoro( );
+        } else if( outgoingCoro->state == CoroState::FINISHED ) {
+            LoopData->unlink( outgoingCoro );
+            LoopData->advanceCoro( );
+            --( LoopData->ActiveCoros );
+
+            if( outgoingCoro->dtached ) {
+                delete outgoingCoro;
+            } else if( outgoingCoro->waitedBy ) {
+                LoopData->reinsertBefore( outgoingCoro->waitedBy );
+            } else {
+                throw uvpp::Exception( "Not detach, nor join coro finished" );
+            }
+        } else { // CoroState::READY
+            LoopData->advanceCoro( );
         }
     }
 }
@@ -161,6 +140,7 @@ std::exception_ptr join( CoroPrivate *coro ) {
         throw Exception( "Circular join loop" );
     }
 
+    coro->waitedBy = LoopData->CurrentCoro;
     LoopData->CurrentCoro->state = CoroState::WAITING;
 
     co_switch( LoopData->SchedulerCoro );
